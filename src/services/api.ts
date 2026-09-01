@@ -1,6 +1,6 @@
 import type { AnalysisResult, Prediction } from '../types';
 
-const PREDICT_URL = 'http://localhost:8000/predict';
+const PREDICT_URL = "https://medvision-ai-backend-771q.onrender.com/predict";
 
 /** Friendly, user-facing error. The message is always safe to show as-is. */
 export class AnalysisError extends Error {}
