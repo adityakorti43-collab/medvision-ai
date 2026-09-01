@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #05070A;
+    color: #F8FAFC;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #05070A;
+}
+::-webkit-scrollbar-thumb {
+  background: #192433;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #27D3F2;
+}
+
+/* Glassmorphism panel style */
+.glass-panel {
+  background: rgba(13, 20, 27, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-cyan {
+  background: rgba(13, 20, 27, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(39, 211, 242, 0.25);
+  box-shadow: 0 0 20px rgba(39, 211, 242, 0.08);
+}
+
+/* Subtle grid texture background */
+.grid-texture {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Respect reduced-motion preference for any remaining CSS animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
