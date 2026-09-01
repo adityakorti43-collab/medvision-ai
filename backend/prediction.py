@@ -53,35 +53,46 @@ transform = transforms.Compose([
 
 
 # ==========================================
-# LOAD MODEL
+# MODEL
 # ==========================================
 
-model = models.efficientnet_b0(
-    weights=None
-)
-
-model.classifier[1] = nn.Linear(
-    model.classifier[1].in_features,
-    2
-)
+model = None
 
 
-# ==========================================
-# LOAD TRAINED WEIGHTS
-# ==========================================
+def load_model():
 
-checkpoint = torch.load(
-    MODEL_PATH,
-    map_location=device
-)
+    global model
 
-model.load_state_dict(
-    checkpoint["model_state_dict"]
-)
+    if model is not None:
+        return model
 
-model = model.to(device)
+    print("Loading chest X-ray model...")
 
-model.eval()
+    model = models.efficientnet_b0(
+        weights=None
+    )
+
+    model.classifier[1] = nn.Linear(
+        model.classifier[1].in_features,
+        2
+    )
+
+    checkpoint = torch.load(
+        MODEL_PATH,
+        map_location=device
+    )
+
+    model.load_state_dict(
+        checkpoint["model_state_dict"]
+    )
+
+    model = model.to(device)
+
+    model.eval()
+
+    print("Chest X-ray model loaded successfully.")
+
+    return model
 
 
 # ==========================================
@@ -91,16 +102,24 @@ model.eval()
 def predict_xray(image_path: str):
 
     # --------------------------------------
+    # Load model only when prediction
+    # is actually requested
+    # --------------------------------------
+
+    current_model = load_model()
+
+    # --------------------------------------
     # Validate image file
     # --------------------------------------
 
     try:
+
         image = Image.open(image_path)
 
-        # Verify that the file is a valid image
         image.verify()
 
     except (UnidentifiedImageError, OSError):
+
         raise ValueError(
             "Invalid image file. Please upload a valid chest X-ray."
         )
@@ -116,12 +135,13 @@ def predict_xray(image_path: str):
         image.width < MIN_IMAGE_WIDTH
         or image.height < MIN_IMAGE_HEIGHT
     ):
+
         raise ValueError(
             "Image is too small. Please upload a chest X-ray image."
         )
 
     # --------------------------------------
-    # Convert and preprocess image
+    # Preprocess
     # --------------------------------------
 
     image = transform(image)
@@ -131,12 +151,12 @@ def predict_xray(image_path: str):
     image = image.to(device)
 
     # --------------------------------------
-    # Model prediction
+    # Prediction
     # --------------------------------------
 
     with torch.no_grad():
 
-        outputs = model(image)
+        outputs = current_model(image)
 
         probabilities = torch.softmax(
             outputs,
@@ -149,7 +169,7 @@ def predict_xray(image_path: str):
         )
 
     # --------------------------------------
-    # Get prediction
+    # Result
     # --------------------------------------
 
     predicted_class = CLASS_NAMES[
@@ -159,11 +179,6 @@ def predict_xray(image_path: str):
     confidence_percentage = (
         confidence.item() * 100
     )
-    
-
-    # --------------------------------------
-    # Return result
-    # --------------------------------------
 
     return {
         "prediction": predicted_class,
@@ -172,4 +187,3 @@ def predict_xray(image_path: str):
             2
         )
     }
-

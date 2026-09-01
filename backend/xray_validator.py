@@ -51,35 +51,46 @@ transform = transforms.Compose([
 
 
 # ==========================================
-# LOAD VALIDATOR MODEL
+# MODEL
 # ==========================================
 
-model = models.efficientnet_b0(
-    weights=None
-)
-
-model.classifier[1] = nn.Linear(
-    model.classifier[1].in_features,
-    2
-)
+model = None
 
 
-# ==========================================
-# LOAD TRAINED WEIGHTS
-# ==========================================
+def load_model():
 
-checkpoint = torch.load(
-    MODEL_PATH,
-    map_location=device
-)
+    global model
 
-model.load_state_dict(
-    checkpoint["model_state_dict"]
-)
+    if model is not None:
+        return model
 
-model = model.to(device)
+    print("Loading X-ray validator model...")
 
-model.eval()
+    model = models.efficientnet_b0(
+        weights=None
+    )
+
+    model.classifier[1] = nn.Linear(
+        model.classifier[1].in_features,
+        2
+    )
+
+    checkpoint = torch.load(
+        MODEL_PATH,
+        map_location=device
+    )
+
+    model.load_state_dict(
+        checkpoint["model_state_dict"]
+    )
+
+    model = model.to(device)
+
+    model.eval()
+
+    print("X-ray validator model loaded successfully.")
+
+    return model
 
 
 # ==========================================
@@ -88,24 +99,25 @@ model.eval()
 
 def validate_image(image_path: str):
 
+    path = Path(image_path)
+
     # --------------------------------------
     # Check file exists
     # --------------------------------------
 
-    path = Path(image_path)
-
     if not path.exists():
+
         return {
             "valid": False,
             "message": "Image file was not found."
         }
 
-
     # --------------------------------------
-    # Open image
+    # Validate image
     # --------------------------------------
 
     try:
+
         image = Image.open(image_path)
 
         image.verify()
@@ -117,10 +129,8 @@ def validate_image(image_path: str):
             "message": "The uploaded file is not a valid image."
         }
 
-
     # Re-open after verify()
     image = Image.open(image_path)
-
 
     # --------------------------------------
     # Basic size validation
@@ -136,9 +146,14 @@ def validate_image(image_path: str):
             "message": "The uploaded image is too small."
         }
 
+    # --------------------------------------
+    # Load validator model
+    # --------------------------------------
+
+    current_model = load_model()
 
     # --------------------------------------
-    # Prepare image
+    # Preprocess
     # --------------------------------------
 
     image = image.convert("RGB")
@@ -149,14 +164,13 @@ def validate_image(image_path: str):
 
     image = image.to(device)
 
-
     # --------------------------------------
-    # AI validation
+    # Prediction
     # --------------------------------------
 
     with torch.no_grad():
 
-        outputs = model(image)
+        outputs = current_model(image)
 
         probabilities = torch.softmax(
             outputs,
@@ -168,9 +182,8 @@ def validate_image(image_path: str):
             dim=1
         )
 
-
     # --------------------------------------
-    # Get result
+    # Result
     # --------------------------------------
 
     predicted_class = CLASS_NAMES[
@@ -181,25 +194,26 @@ def validate_image(image_path: str):
         confidence.item() * 100
     )
 
-
     # --------------------------------------
-    # NON-XRAY
+    # Reject non-X-ray
     # --------------------------------------
 
     if predicted_class == "NON_XRAY":
 
         return {
             "valid": False,
-            "message": "This doesn't appear to be a chest X-ray. Please upload a chest X-ray image.",
+            "message": (
+                "This doesn't appear to be a chest X-ray. "
+                "Please upload a chest X-ray image."
+            ),
             "confidence": round(
                 confidence_percentage,
                 2
             )
         }
 
-
     # --------------------------------------
-    # XRAY
+    # Valid X-ray
     # --------------------------------------
 
     return {
