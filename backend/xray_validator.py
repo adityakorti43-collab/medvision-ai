@@ -12,13 +12,13 @@ from PIL import Image, UnidentifiedImageError
 
 BASE_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = BASE_DIR / "models" / "chest_xray_model.pth"
+MODEL_PATH = BASE_DIR / "models" / "xray_validator.pth"
 
 IMAGE_SIZE = 224
 
 CLASS_NAMES = [
-    "NORMAL",
-    "PNEUMONIA"
+    "NON_XRAY",
+    "XRAY"
 ]
 
 MIN_IMAGE_WIDTH = 100
@@ -41,8 +41,6 @@ device = torch.device(
 transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
 
-    transforms.Grayscale(num_output_channels=3),
-
     transforms.ToTensor(),
 
     transforms.Normalize(
@@ -53,7 +51,7 @@ transform = transforms.Compose([
 
 
 # ==========================================
-# LOAD MODEL
+# LOAD VALIDATOR MODEL
 # ==========================================
 
 model = models.efficientnet_b0(
@@ -85,28 +83,44 @@ model.eval()
 
 
 # ==========================================
-# PREDICT
+# VALIDATE IMAGE
 # ==========================================
 
-def predict_xray(image_path: str):
+def validate_image(image_path: str):
 
     # --------------------------------------
-    # Validate image file
+    # Check file exists
+    # --------------------------------------
+
+    path = Path(image_path)
+
+    if not path.exists():
+        return {
+            "valid": False,
+            "message": "Image file was not found."
+        }
+
+
+    # --------------------------------------
+    # Open image
     # --------------------------------------
 
     try:
         image = Image.open(image_path)
 
-        # Verify that the file is a valid image
         image.verify()
 
     except (UnidentifiedImageError, OSError):
-        raise ValueError(
-            "Invalid image file. Please upload a valid chest X-ray."
-        )
+
+        return {
+            "valid": False,
+            "message": "The uploaded file is not a valid image."
+        }
+
 
     # Re-open after verify()
     image = Image.open(image_path)
+
 
     # --------------------------------------
     # Basic size validation
@@ -116,13 +130,18 @@ def predict_xray(image_path: str):
         image.width < MIN_IMAGE_WIDTH
         or image.height < MIN_IMAGE_HEIGHT
     ):
-        raise ValueError(
-            "Image is too small. Please upload a chest X-ray image."
-        )
+
+        return {
+            "valid": False,
+            "message": "The uploaded image is too small."
+        }
+
 
     # --------------------------------------
-    # Convert and preprocess image
+    # Prepare image
     # --------------------------------------
+
+    image = image.convert("RGB")
 
     image = transform(image)
 
@@ -130,8 +149,9 @@ def predict_xray(image_path: str):
 
     image = image.to(device)
 
+
     # --------------------------------------
-    # Model prediction
+    # AI validation
     # --------------------------------------
 
     with torch.no_grad():
@@ -148,8 +168,9 @@ def predict_xray(image_path: str):
             dim=1
         )
 
+
     # --------------------------------------
-    # Get prediction
+    # Get result
     # --------------------------------------
 
     predicted_class = CLASS_NAMES[
@@ -159,17 +180,33 @@ def predict_xray(image_path: str):
     confidence_percentage = (
         confidence.item() * 100
     )
-    
+
 
     # --------------------------------------
-    # Return result
+    # NON-XRAY
+    # --------------------------------------
+
+    if predicted_class == "NON_XRAY":
+
+        return {
+            "valid": False,
+            "message": "This doesn't appear to be a chest X-ray. Please upload a chest X-ray image.",
+            "confidence": round(
+                confidence_percentage,
+                2
+            )
+        }
+
+
+    # --------------------------------------
+    # XRAY
     # --------------------------------------
 
     return {
-        "prediction": predicted_class,
+        "valid": True,
+        "message": "Chest X-ray detected.",
         "confidence": round(
             confidence_percentage,
             2
         )
     }
-

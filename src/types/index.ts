@@ -1,4 +1,7 @@
-export type Prediction = 'NORMAL' | 'PNEUMONIA';
+export type Prediction =
+  | 'NORMAL'
+  | 'PNEUMONIA'
+  | 'UNSURE';
 
 /** Shape of a successful response from POST /predict */
 export interface AnalysisResult {
