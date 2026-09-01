@@ -1,8 +1,9 @@
 import type { AnalysisResult, Prediction } from '../types';
 
-const PREDICT_URL = "https://medvision-ai-backend-771q.onrender.com/predict";
+const PREDICT_URL =
+  "https://medvision-ai-backend-771q.onrender.com/predict";
 
-/** Friendly, user-facing error. The message is always safe to show as-is. */
+/** Friendly, user-facing error. */
 export class AnalysisError extends Error {}
 
 function isPrediction(value: unknown): value is Prediction {
@@ -10,50 +11,120 @@ function isPrediction(value: unknown): value is Prediction {
 }
 
 /**
- * Sends the given chest X-ray file to the MedVision AI backend for screening.
- * The backend expects multipart/form-data with a single field named "file"
- * and responds with { message, filename, prediction, confidence }.
+ * Sends the given chest X-ray file to the MedVision AI backend.
  */
-export async function analyzeXray(file: File): Promise<AnalysisResult> {
+export async function analyzeXray(
+  file: File
+): Promise<AnalysisResult> {
+
   const formData = new FormData();
+
   formData.append('file', file);
 
   let response: Response;
+
+  // ==========================================
+  // SEND REQUEST
+  // ==========================================
+
   try {
+
     response = await fetch(PREDICT_URL, {
       method: 'POST',
       body: formData,
     });
+
   } catch {
+
     throw new AnalysisError(
       "Couldn't reach the AI right now. Please make sure the backend is running and try again."
     );
+
   }
+
+
+  // ==========================================
+  // HANDLE BACKEND ERRORS
+  // ==========================================
 
   if (!response.ok) {
-    if (response.status === 400 || response.status === 415 || response.status === 422) {
-      throw new AnalysisError("That file couldn't be analyzed. Please upload a JPG, JPEG or PNG chest X-ray.");
+
+    let errorMessage =
+      'Something went wrong while analyzing the X-ray. Please try again.';
+
+    try {
+
+      const errorData = await response.json();
+
+      if (
+        errorData &&
+        typeof errorData === 'object' &&
+        'detail' in errorData &&
+        typeof (
+          errorData as Record<string, unknown>
+        ).detail === 'string'
+      ) {
+
+        errorMessage =
+          (errorData as Record<string, unknown>)
+            .detail as string;
+
+      }
+
+    } catch {
+      // Keep the default error message
     }
-    throw new AnalysisError('Something went wrong while analyzing the X-ray. Please try again.');
+
+    throw new AnalysisError(errorMessage);
   }
 
+
+  // ==========================================
+  // READ SUCCESS RESPONSE
+  // ==========================================
+
   let data: unknown;
+
   try {
+
     data = await response.json();
+
   } catch {
-    throw new AnalysisError('Received an unexpected response from the AI. Please try again.');
+
+    throw new AnalysisError(
+      'Received an unexpected response from the AI. Please try again.'
+    );
+
   }
+
+
+  // ==========================================
+  // VALIDATE RESPONSE
+  // ==========================================
 
   if (
     !data ||
     typeof data !== 'object' ||
     !('prediction' in data) ||
     !('confidence' in data) ||
-    !isPrediction((data as Record<string, unknown>).prediction) ||
-    typeof (data as Record<string, unknown>).confidence !== 'number'
+    !isPrediction(
+      (data as Record<string, unknown>).prediction
+    ) ||
+    typeof (
+      data as Record<string, unknown>
+    ).confidence !== 'number'
   ) {
-    throw new AnalysisError('Received an unexpected response from the AI. Please try again.');
+
+    throw new AnalysisError(
+      'Received an unexpected response from the AI. Please try again.'
+    );
+
   }
+
+
+  // ==========================================
+  // PARSED RESULT
+  // ==========================================
 
   const parsed = data as {
     prediction: Prediction;
@@ -62,10 +133,23 @@ export async function analyzeXray(file: File): Promise<AnalysisResult> {
     message?: string;
   };
 
+
+  // ==========================================
+  // RETURN RESULT
+  // ==========================================
+
   return {
+
     prediction: parsed.prediction,
-    confidence: Math.max(0, Math.min(100, parsed.confidence)),
+
+    confidence: Math.max(
+      0,
+      Math.min(100, parsed.confidence)
+    ),
+
     filename: parsed.filename ?? file.name,
+
     message: parsed.message ?? '',
+
   };
 }
