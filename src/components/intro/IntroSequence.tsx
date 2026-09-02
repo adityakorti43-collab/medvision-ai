@@ -7,10 +7,16 @@ interface IntroSequenceProps {
 
 const SESSION_KEY = 'medvision_intro_seen';
 
-export const IntroSequence: React.FC<IntroSequenceProps> = ({ onComplete }) => {
+export const IntroSequence: React.FC<IntroSequenceProps> = ({
+  onComplete,
+}) => {
   useEffect(() => {
-  sessionStorage.removeItem(SESSION_KEY);
-}, []);
+    const hasSeenIntro = sessionStorage.getItem(SESSION_KEY);
+
+    if (hasSeenIntro) {
+      onComplete();
+    }
+  }, [onComplete]);
 
   const handleVideoEnd = () => {
     sessionStorage.setItem(SESSION_KEY, 'true');
@@ -35,7 +41,7 @@ export const IntroSequence: React.FC<IntroSequenceProps> = ({ onComplete }) => {
         muted
         playsInline
         onEnded={handleVideoEnd}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain"
       >
         <source src="/intro/medvision-intro.mp4" type="video/mp4" />
       </video>
